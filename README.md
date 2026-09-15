@@ -125,7 +125,7 @@ const showConversation = (): void => {
 </template>
 ```
 
-`processMessages` appends the supplied messages to the current list. It does not replace or deduplicate messages.
+`processMessages` adds each supplied message when its UUID is new. If a UUID already exists, the existing message is replaced in place. This allows a completed API message to replace the partial message built during streaming without changing its position in the conversation.
 
 ## Props
 
@@ -173,7 +173,7 @@ const clearConversation = (): void => {
 | --- | --- | --- |
 | `messages` | `Message[]` | Reactive array containing the messages currently displayed. |
 | `thinking` | `boolean` | Reactive state for the global “Thinking…” indicator. |
-| `processMessages` | `(messages: Message[]) => void` | Appends complete user or assistant messages. |
+| `processMessages` | `(messages: Message[]) => void` | Adds complete user or assistant messages, replacing an existing message with the same UUID. |
 | `processStream` | `(stream: unknown, eventType?: string) => void` | Processes one stream event, a JSON-encoded event, an array of events, a WebSocket-style `{ event, data }` envelope, or a complete message object. |
 | `setThinking` | `(value: boolean) => void` | Explicitly sets the global thinking indicator. |
 | `clearMessages` | `() => void` | Clears all messages, hides thinking, and resets the active stream state. |

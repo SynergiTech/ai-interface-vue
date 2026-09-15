@@ -406,6 +406,10 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    debug: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 type Message = UserMessage | AssistantMessage;
@@ -539,8 +543,22 @@ const ensureActiveStream = (): ActiveStream => {
     return activeStream;
 };
 
+const addOrReplaceMessage = (message: Message): void => {
+    const existingIndex = messages.value.findIndex((existingMessage) => existingMessage.uuid === message.uuid);
+
+    if (existingIndex === -1) {
+        messages.value.push(message);
+        return;
+    }
+
+    messages.value.splice(existingIndex, 1, message);
+};
+
 const processMessages = (newMessages: Message[]): void => {
-    messages.value.push(...newMessages);
+    if (props.debug) {
+        console.log('processMessages:', JSON.stringify(newMessages));
+    }
+    newMessages.forEach(addOrReplaceMessage);
 };
 
 const clearMessages = (): void => {
@@ -724,6 +742,14 @@ const createUsage = (): Usage => ({
     cacheWriteInputTokens: null,
 });
 
+const normalizeUsage = (usage: Record<string, unknown>): Usage => ({
+    promptTokens: readNumber(usage, 'prompt_tokens', 'promptTokens') ?? 0,
+    thoughtTokens: readNumber(usage, 'thought_tokens', 'thoughtTokens') ?? null,
+    completionTokens: readNumber(usage, 'completion_tokens', 'completionTokens') ?? 0,
+    cacheReadInputTokens: readNumber(usage, 'cache_read_input_tokens', 'cacheReadInputTokens') ?? null,
+    cacheWriteInputTokens: readNumber(usage, 'cache_write_input_tokens', 'cacheWriteInputTokens') ?? null,
+});
+
 const createAssistantMetadata = (): AssistantMetadata => ({
     model: activeStream?.model ?? '',
     parts: [],
@@ -733,6 +759,33 @@ const createAssistantMetadata = (): AssistantMetadata => ({
     response_id: activeStream?.responseId ?? '',
     finish_reason: '',
 });
+
+const ensureAssistantMetadata = (message: AssistantMessage): AssistantMetadata => {
+    const metadata: Record<string, unknown> = isRecord(message.metadata) ? message.metadata : {};
+    const usage = readRecord(metadata, 'usage');
+
+    metadata.model = readString(metadata, 'model') ?? activeStream?.model ?? '';
+    metadata.parts = readArray(metadata, 'parts') ?? [];
+    metadata.usage = usage === undefined ? createUsage() : normalizeUsage(usage);
+    metadata.provider = readString(metadata, 'provider') ?? activeStream?.provider ?? '';
+    metadata.citations = readArray(metadata, 'citations') ?? null;
+    metadata.response_id = readString(metadata, 'response_id', 'responseId') ?? activeStream?.responseId ?? '';
+    metadata.finish_reason = readString(metadata, 'finish_reason', 'finishReason') ?? '';
+
+    message.metadata = metadata as unknown as AssistantMetadata;
+
+    return message.metadata;
+};
+
+const normalizeStreamAssistantMessage = (message: AssistantMessage): AssistantMessage => {
+    if (typeof message.content !== 'string') {
+        message.content = '';
+    }
+
+    ensureAssistantMetadata(message);
+
+    return message;
+};
 
 const findAssistantMessage = (messageId: string | null): AssistantMessage | undefined => {
     if (messageId === null) {
@@ -745,11 +798,14 @@ const findAssistantMessage = (messageId: string | null): AssistantMessage | unde
 };
 
 const mergeAssistantMessages = (target: AssistantMessage, source: AssistantMessage): void => {
-    if (source.content !== '') {
-        target.content = `${source.content}${target.content}`;
+    const normalizedTarget = normalizeStreamAssistantMessage(target);
+    const normalizedSource = normalizeStreamAssistantMessage(source);
+
+    if (normalizedSource.content !== '') {
+        normalizedTarget.content = `${normalizedSource.content}${normalizedTarget.content}`;
     }
 
-    target.metadata.parts.unshift(...source.metadata.parts);
+    normalizedTarget.metadata.parts.unshift(...normalizedSource.metadata.parts);
 };
 
 const ensureAssistantMessage = (
@@ -759,6 +815,14 @@ const ensureAssistantMessage = (
 ): AssistantMessage => {
     const temporaryMessage = findAssistantMessage(activeStream?.temporaryMessageId ?? null);
     const existingMessage = findAssistantMessage(messageId);
+
+    if (temporaryMessage !== undefined) {
+        normalizeStreamAssistantMessage(temporaryMessage);
+    }
+
+    if (existingMessage !== undefined) {
+        normalizeStreamAssistantMessage(existingMessage);
+    }
 
     if (existingMessage !== undefined) {
         if (temporaryMessage !== undefined && temporaryMessage !== existingMessage && activeStream !== null) {
@@ -1014,14 +1078,6 @@ const addToolResult = (message: AssistantMessage, payload: Record<string, unknow
     addToolResultEntry(message, payload);
 };
 
-const normalizeUsage = (usage: Record<string, unknown>): Usage => ({
-    promptTokens: readNumber(usage, 'prompt_tokens', 'promptTokens') ?? 0,
-    thoughtTokens: readNumber(usage, 'thought_tokens', 'thoughtTokens') ?? null,
-    completionTokens: readNumber(usage, 'completion_tokens', 'completionTokens') ?? 0,
-    cacheReadInputTokens: readNumber(usage, 'cache_read_input_tokens', 'cacheReadInputTokens') ?? null,
-    cacheWriteInputTokens: readNumber(usage, 'cache_write_input_tokens', 'cacheWriteInputTokens') ?? null,
-});
-
 const processCompleteMessage = (value: Record<string, unknown>): boolean => {
     if (
         (value.type !== 'user' && value.type !== 'assistant') ||
@@ -1033,13 +1089,8 @@ const processCompleteMessage = (value: Record<string, unknown>): boolean => {
     }
 
     const message = value as unknown as Message;
-    const existingIndex = messages.value.findIndex((existingMessage) => existingMessage.uuid === message.uuid);
 
-    if (existingIndex === -1) {
-        messages.value.push(message);
-    } else {
-        messages.value[existingIndex] = message;
-    }
+    addOrReplaceMessage(message);
 
     if (message.type === 'assistant' && message.status !== 'streaming') {
         setThinking(false);
@@ -1094,6 +1145,9 @@ const tokenUsageLabel = (usage?: Usage): string => {
 };
 
 const processStream = (stream: unknown, eventType?: string): void => {
+    if (props.debug) {
+        console.log('processStream: ', stream, eventType);
+    }
     const parsedStream = parseJson(stream);
 
     if (Array.isArray(parsedStream)) {
