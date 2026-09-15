@@ -648,16 +648,23 @@ const normalizeEventType = (eventType: string): string | null => {
     const aliases: Record<string, string> = {
         start: 'stream_start',
         stream_start: 'stream_start',
+        stream_started: 'stream_start',
+        stream_finished: 'stream_end',
+        stream_completed: 'stream_end',
         text_start: 'text_start',
+        text_started: 'text_start',
         text_delta: 'text_delta',
         text_end: 'text_complete',
         text_complete: 'text_complete',
+        text_completed: 'text_complete',
         reasoning_start: 'thinking_start',
         reasoning_delta: 'thinking_delta',
         reasoning_end: 'thinking_complete',
         thinking_start: 'thinking_start',
+        thinking_started: 'thinking_start',
         thinking_delta: 'thinking_delta',
         thinking_complete: 'thinking_complete',
+        thinking_completed: 'thinking_complete',
         tool_call: 'tool_call',
         tool_input_available: 'tool_call',
         tool_result: 'tool_result',
@@ -695,7 +702,7 @@ const normalizeStreamEvent = (stream: unknown, eventType?: string): NormalizedSt
         }
     }
 
-    const originalType = outerEventType ?? readString(payload, 'type') ?? '';
+    const originalType = readString(payload, 'type') ?? outerEventType ?? '';
     const normalizedType = normalizeEventType(originalType);
 
     if (normalizedType === null || originalType.startsWith('pusher:')) {
@@ -726,6 +733,151 @@ const createAssistantMetadata = (): AssistantMetadata => ({
     response_id: activeStream?.responseId ?? '',
     finish_reason: '',
 });
+
+const normalizeToolCall = (value: unknown): ToolCall | null => {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    const argumentsValue = parseJson(readValue(value, 'arguments', 'input'));
+
+    return {
+        id: readString(value, 'id', 'tool_id', 'toolId', 'toolCallId') ?? randomId(),
+        name: readString(value, 'name', 'tool_name', 'toolName') ?? '',
+        arguments: isRecord(argumentsValue) ? argumentsValue : {},
+    };
+};
+
+const normalizeToolResult = (value: unknown): ToolResult | null => {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    const toolCallId = readString(value, 'tool_call_id', 'toolCallId', 'tool_id', 'toolId', 'id') ?? randomId();
+    const resultValue = readValue(value, 'result', 'output');
+    const errorValue = readValue(value, 'error');
+    const argumentsValue = parseJson(readValue(value, 'arguments', 'input'));
+
+    return {
+        name: readString(value, 'name', 'tool_name', 'toolName') ?? '',
+        error: errorValue === undefined ? null : errorValue,
+        result: typeof resultValue === 'string' ? resultValue : (JSON.stringify(resultValue) ?? ''),
+        success:
+            readBoolean(value, 'success') ??
+            (errorValue === undefined || errorValue === null),
+        arguments: isRecord(argumentsValue) ? argumentsValue : {},
+        tool_call_id: toolCallId,
+    };
+};
+
+const normalizeAssistantPart = (value: unknown): AssistantPart | null => {
+    if (!isRecord(value) || typeof value.type !== 'string') {
+        return null;
+    }
+
+    switch (value.type) {
+        case 'text':
+            return {
+                type: 'text',
+                content: typeof value.content === 'string' ? value.content : '',
+            };
+
+        case 'thinking':
+            return {
+                type: 'thinking',
+                id: readString(value, 'id', 'reasoning_id', 'reasoningId') ?? randomId(),
+                content: typeof value.content === 'string' ? value.content : '',
+                summary: readRecord(value, 'summary') ?? null,
+            };
+
+        case 'tool_call': {
+            const data = readRecord(value, 'data') ?? {};
+            const calls = (readArray(data, 'calls') ?? [])
+                .map((call) => normalizeToolCall(call))
+                .filter((call): call is ToolCall => call !== null);
+
+            return {
+                type: 'tool_call',
+                data: { calls },
+            };
+        }
+
+        case 'tool_result': {
+            const data = readRecord(value, 'data') ?? {};
+            const results = (readArray(data, 'results') ?? [])
+                .map((result) => normalizeToolResult(result))
+                .filter((result): result is ToolResult => result !== null);
+
+            return {
+                type: 'tool_result',
+                data: { results },
+            };
+        }
+
+        case 'provider_tool':
+            return {
+                type: 'provider_tool',
+                data: readRecord(value, 'data') ?? {},
+            };
+
+        default:
+            return null;
+    }
+};
+
+const normalizeAssistantMetadata = (value: unknown): AssistantMetadata => {
+    const metadata = isRecord(value) ? value : {};
+    const parts = (readArray(metadata, 'parts') ?? [])
+        .map((part) => normalizeAssistantPart(part))
+        .filter((part): part is AssistantPart => part !== null);
+    const citationsValue = readValue(metadata, 'citations');
+
+    return {
+        model: readString(metadata, 'model') ?? '',
+        parts,
+        usage: normalizeUsage(readRecord(metadata, 'usage') ?? {}),
+        provider: readString(metadata, 'provider') ?? '',
+        citations: Array.isArray(citationsValue) ? citationsValue : null,
+        response_id: readString(metadata, 'response_id', 'responseId') ?? '',
+        finish_reason: readString(metadata, 'finish_reason', 'finishReason') ?? '',
+    };
+};
+
+const normalizeMessage = (value: unknown): Message | null => {
+    if (!isRecord(value) || (value.type !== 'user' && value.type !== 'assistant')) {
+        return null;
+    }
+
+    const status = value.status;
+
+    if (
+        typeof value.uuid !== 'string' ||
+        typeof value.content !== 'string' ||
+        (status !== 'streaming' && status !== 'completed' && status !== 'error')
+    ) {
+        return null;
+    }
+
+    if (value.type === 'user') {
+        return {
+            uuid: value.uuid,
+            type: 'user',
+            content: value.content,
+            status,
+            created_at: toIsoDate(readValue(value, 'created_at', 'createdAt', 'timestamp')),
+            metadata: null,
+        };
+    }
+
+    return {
+        uuid: value.uuid,
+        type: 'assistant',
+        content: value.content,
+        status,
+        created_at: toIsoDate(readValue(value, 'created_at', 'createdAt', 'timestamp')),
+        metadata: normalizeAssistantMetadata(readValue(value, 'metadata')),
+    };
+};
 
 const findAssistantMessage = (messageId: string | null): AssistantMessage | undefined => {
     if (messageId === null) {
@@ -801,7 +953,7 @@ const ensureAssistantMessage = (
 };
 
 const activeMessageIdForEvent = (event: NormalizedStreamEvent): string | null => {
-    const explicitMessageId = readString(event.payload, 'message_id', 'messageId', 'uuid');
+    const explicitMessageId = readString(event.payload, 'message_id', 'messageId', 'message_uuid', 'messageUuid', 'uuid');
 
     if (explicitMessageId !== undefined) {
         return explicitMessageId;
@@ -822,7 +974,7 @@ const ensureMessageForEvent = (event: NormalizedStreamEvent): AssistantMessage =
 
     const messageId = activeMessageIdForEvent(event) ?? randomId();
     const hasExplicitMessageId =
-        readString(event.payload, 'message_id', 'messageId', 'uuid') !== undefined ||
+        readString(event.payload, 'message_id', 'messageId', 'message_uuid', 'messageUuid', 'uuid') !== undefined ||
         (['text_start', 'text_delta', 'text_complete'].includes(event.type) &&
             ['text-start', 'text-delta', 'text-end'].includes(event.originalType) &&
             readString(event.payload, 'id') !== undefined);
@@ -903,11 +1055,10 @@ const appendThinkingDelta = (
     }
 };
 
-const addToolCall = (message: AssistantMessage, payload: Record<string, unknown>): void => {
-    const toolCallId = readString(payload, 'tool_id', 'toolId', 'toolCallId') ?? randomId();
+const addToolCallEntry = (message: AssistantMessage, payload: Record<string, unknown>): void => {
     const toolCall: ToolCall = {
-        id: toolCallId,
-        name: readString(payload, 'tool_name', 'toolName', 'name') ?? '',
+        id: readString(payload, 'id', 'tool_id', 'toolId', 'toolCallId') ?? randomId(),
+        name: readString(payload, 'name', 'tool_name', 'toolName') ?? '',
         arguments: (() => {
             const value = parseJson(readValue(payload, 'arguments', 'input'));
 
@@ -935,8 +1086,25 @@ const addToolCall = (message: AssistantMessage, payload: Record<string, unknown>
     }
 };
 
-const addToolResult = (message: AssistantMessage, payload: Record<string, unknown>): void => {
-    const toolCallId = readString(payload, 'tool_id', 'toolId', 'toolCallId') ?? randomId();
+const addToolCall = (message: AssistantMessage, payload: Record<string, unknown>): void => {
+    const calls = readArray(payload, 'calls');
+
+    if (calls !== undefined) {
+        calls.forEach((call) => {
+            if (isRecord(call)) {
+                addToolCallEntry(message, call);
+            }
+        });
+
+        return;
+    }
+
+    addToolCallEntry(message, payload);
+};
+
+const addToolResultEntry = (message: AssistantMessage, payload: Record<string, unknown>): void => {
+    const toolCallId =
+        readString(payload, 'tool_call_id', 'toolCallId', 'tool_id', 'toolId', 'id') ?? randomId();
     const toolCall = findToolCall(message, toolCallId);
     const resultValue = readValue(payload, 'result', 'output');
     const result: ToolResult = {
@@ -975,6 +1143,22 @@ const addToolResult = (message: AssistantMessage, payload: Record<string, unknow
     }
 };
 
+const addToolResult = (message: AssistantMessage, payload: Record<string, unknown>): void => {
+    const results = readArray(payload, 'results');
+
+    if (results !== undefined) {
+        results.forEach((result) => {
+            if (isRecord(result)) {
+                addToolResultEntry(message, result);
+            }
+        });
+
+        return;
+    }
+
+    addToolResultEntry(message, payload);
+};
+
 const normalizeUsage = (usage: Record<string, unknown>): Usage => ({
     promptTokens: readNumber(usage, 'prompt_tokens', 'promptTokens') ?? 0,
     thoughtTokens: readNumber(usage, 'thought_tokens', 'thoughtTokens') ?? null,
@@ -984,16 +1168,12 @@ const normalizeUsage = (usage: Record<string, unknown>): Usage => ({
 });
 
 const processCompleteMessage = (value: Record<string, unknown>): boolean => {
-    if (
-        (value.type !== 'user' && value.type !== 'assistant') ||
-        typeof value.uuid !== 'string' ||
-        typeof value.content !== 'string' ||
-        !['streaming', 'completed', 'error'].includes(String(value.status))
-    ) {
+    const message = normalizeMessage(value);
+
+    if (message === null) {
         return false;
     }
 
-    const message = value as unknown as Message;
     const existingIndex = messages.value.findIndex((existingMessage) => existingMessage.uuid === message.uuid);
 
     if (existingIndex === -1) {
@@ -1065,7 +1245,8 @@ const processStream = (stream: unknown, eventType?: string): void => {
         case 'stream_start': {
             activeStream = {
                 id: readString(event.payload, 'id') ?? null,
-                messageId: readString(event.payload, 'message_id', 'messageId') ?? null,
+                messageId:
+                    readString(event.payload, 'message_id', 'messageId', 'message_uuid', 'messageUuid') ?? null,
                 temporaryMessageId: null,
                 reasoningId: null,
                 model: readString(event.payload, 'model') ?? '',

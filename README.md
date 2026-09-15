@@ -263,19 +263,19 @@ aiInterface.value?.processStream(
 
 | Normalized event | Accepted aliases | Main effect |
 | --- | --- | --- |
-| `stream_start` | `start` | Starts a stream, records model/provider identifiers, and shows the thinking indicator. |
-| `text_start` | — | Starts a text part and hides the thinking indicator. |
+| `stream_start` | `start`, `stream_started` | Starts a stream, records model/provider identifiers, and shows the thinking indicator. |
+| `text_start` | `text_started` | Starts a text part and hides the thinking indicator. |
 | `text_delta` | — | Appends the `delta` text to the assistant message and active text part. |
-| `text_complete` | `text_end` | Closes the active text part. |
-| `thinking_start` | `reasoning_start` | Starts a thinking part and shows the thinking indicator. |
+| `text_complete` | `text_end`, `text_completed` | Closes the active text part. |
+| `thinking_start` | `reasoning_start`, `thinking_started` | Starts a thinking part and shows the thinking indicator. |
 | `thinking_delta` | `reasoning_delta` | Appends reasoning text to the matching thinking part. |
-| `thinking_complete` | `reasoning_end` | Hides the thinking indicator. |
+| `thinking_complete` | `reasoning_end`, `thinking_completed` | Hides the thinking indicator. |
 | `tool_call` | `tool_input_available` | Adds or updates a tool call and shows the thinking indicator. |
 | `tool_result` | `tool_output_available` | Adds or updates a tool result and shows the thinking indicator. |
 | `provider_tool_event` | — | Stores the complete event payload as a provider-tool part. |
 | `citation` | `data_citation` | Adds the supplied citation to the assistant metadata. |
 | `error` | — | Marks the active assistant message as errored and displays an error message when no content exists. |
-| `stream_end` | `finish` | Applies usage, finish reason, response ID, and citations, marks the message completed, and resets stream state. |
+| `stream_end` | `finish`, `stream_finished`, `stream_completed` | Applies usage, finish reason, response ID, and citations, marks the message completed, and resets stream state. |
 
 Event names are normalized by replacing punctuation with underscores and converting to lowercase. Unknown events are ignored. Pusher lifecycle events beginning with `pusher:` are also ignored.
 
@@ -286,12 +286,12 @@ The parser accepts the following common field aliases:
 | Event | Fields |
 | --- | --- |
 | `stream_start` | `id`, `message_id` or `messageId`, `model`, `provider`, `response_id` or `responseId` |
-| `text_start` | `message_id`, `messageId`, or `uuid`; a direct `text-start` event can also use `id` |
+| `text_start` | `message_id`, `messageId`, `message_uuid`, `messageUuid`, or `uuid`; a direct `text-start` event can also use `id` |
 | `text_delta` | `delta`, plus the message ID fields above |
 | `thinking_start` | `reasoning_id` or `reasoningId`, optional `summary`; a direct `reasoning-start` event can use `id` |
 | `thinking_delta` | `reasoning_id` or `reasoningId`, `delta`, optional `summary`; a direct `reasoning-delta` event can use `id` |
-| `tool_call` | `tool_id`, `toolId`, or `toolCallId`; `tool_name`, `toolName`, or `name`; `arguments` or `input` |
-| `tool_result` | Tool ID/name fields, `result` or `output`, optional `error`, optional `success`, and optional `arguments` or `input` |
+| `tool_call` | Either one tool's `id`, `tool_id`, `toolId`, or `toolCallId`; name fields; and `arguments` or `input`, or a `calls` array containing those objects |
+| `tool_result` | Either one result's `tool_call_id`, `toolCallId`, `tool_id`, `toolId`, or `id`, result/output, optional `error`, optional `success`, and optional arguments/input, or a `results` array containing those objects |
 | `citation` | `citation`; if absent, the complete event payload is stored as the citation |
 | `error` | `message` or `errorText` |
 | `stream_end` | `messageMetadata` or `message_metadata`, nested `usage`, `finish_reason` or `finishReason`, `response_id` or `responseId`, and top-level `citations` |
