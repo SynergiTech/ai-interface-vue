@@ -90,12 +90,12 @@
                         ></div>
 
                         <div
-                            v-if="message.metadata.parts.length"
+                            v-if="message.metadata?.parts?.length"
                             class="ai-interface__parts"
                             :class="props.classes.parts"
                         >
                             <template
-                                v-for="(part, partIndex) in message.metadata.parts"
+                                v-for="(part, partIndex) in message.metadata?.parts ?? []"
                                 :key="`${message.uuid}-${partIndex}`"
                             >
                                 <div
@@ -216,14 +216,14 @@
                         </div>
 
                         <div
-                            v-if="message.metadata.citations?.length"
+                            v-if="message.metadata?.citations?.length"
                             class="ai-interface__citations"
                             :class="props.classes.citations"
                         >
                             <div class="ai-interface__part-heading" :class="props.classes.partHeading">
                                 <span :class="props.classes.partTitle">Citations</span>
                                 <span class="ai-interface__part-label" :class="props.classes.partLabel">
-                                    {{ message.metadata.citations.length }}
+                                    {{ message.metadata?.citations?.length ?? 0 }}
                                 </span>
                             </div>
                             <ol class="ai-interface__citation-list" :class="props.classes.citationList">
@@ -240,42 +240,42 @@
                         <div
                             v-if="
                                 message.type === 'assistant' &&
-                                ((message.metadata.model && props.model) ||
-                                    (message.metadata.provider && props.provider) ||
-                                    (hasTokenUsage(message.metadata.usage) && props.tokens))
+                                ((message.metadata?.model && props.model) ||
+                                    (message.metadata?.provider && props.provider) ||
+                                    (hasTokenUsage(message.metadata?.usage) && props.tokens))
                             "
                             class="ai-interface__metadata"
                             :class="props.classes.metadata"
                         >
                             <div class="ai-interface__metadata-details" :class="props.classes.metadataDetails">
-                                <span v-if="message.metadata.provider && props.provider">
+                                <span v-if="message.metadata?.provider && props.provider">
                                     {{ message.metadata.provider }}
                                 </span>
                                 <span
                                     v-if="
-                                        message.metadata.provider &&
+                                        message.metadata?.provider &&
                                         props.provider &&
-                                        message.metadata.model &&
+                                        message.metadata?.model &&
                                         props.model
                                     "
                                     aria-hidden="true"
                                 >
                                     ·
                                 </span>
-                                <span v-if="message.metadata.model && props.model">{{ message.metadata.model }}</span>
+                                <span v-if="message.metadata?.model && props.model">{{ message.metadata.model }}</span>
                             </div>
                             <span
-                                v-if="hasTokenUsage(message.metadata.usage) && props.tokens"
+                                v-if="hasTokenUsage(message.metadata?.usage) && props.tokens"
                                 class="ai-interface__tokens"
                                 :class="props.classes.tokens"
-                                :title="tokenUsageLabel(message.metadata.usage)"
+                                :title="tokenUsageLabel(message.metadata?.usage)"
                             >
-                                {{ totalTokens(message.metadata.usage).toLocaleString() }} tokens
+                                {{ totalTokens(message.metadata?.usage).toLocaleString() }} tokens
                             </span>
                         </div>
 
                         <div
-                            v-if="!message.content && !message.metadata.parts.length"
+                            v-if="!message.content && !message.metadata?.parts?.length"
                             class="ai-interface__placeholder"
                             :class="props.classes.placeholder"
                         >
@@ -734,151 +734,6 @@ const createAssistantMetadata = (): AssistantMetadata => ({
     finish_reason: '',
 });
 
-const normalizeToolCall = (value: unknown): ToolCall | null => {
-    if (!isRecord(value)) {
-        return null;
-    }
-
-    const argumentsValue = parseJson(readValue(value, 'arguments', 'input'));
-
-    return {
-        id: readString(value, 'id', 'tool_id', 'toolId', 'toolCallId') ?? randomId(),
-        name: readString(value, 'name', 'tool_name', 'toolName') ?? '',
-        arguments: isRecord(argumentsValue) ? argumentsValue : {},
-    };
-};
-
-const normalizeToolResult = (value: unknown): ToolResult | null => {
-    if (!isRecord(value)) {
-        return null;
-    }
-
-    const toolCallId = readString(value, 'tool_call_id', 'toolCallId', 'tool_id', 'toolId', 'id') ?? randomId();
-    const resultValue = readValue(value, 'result', 'output');
-    const errorValue = readValue(value, 'error');
-    const argumentsValue = parseJson(readValue(value, 'arguments', 'input'));
-
-    return {
-        name: readString(value, 'name', 'tool_name', 'toolName') ?? '',
-        error: errorValue === undefined ? null : errorValue,
-        result: typeof resultValue === 'string' ? resultValue : (JSON.stringify(resultValue) ?? ''),
-        success:
-            readBoolean(value, 'success') ??
-            (errorValue === undefined || errorValue === null),
-        arguments: isRecord(argumentsValue) ? argumentsValue : {},
-        tool_call_id: toolCallId,
-    };
-};
-
-const normalizeAssistantPart = (value: unknown): AssistantPart | null => {
-    if (!isRecord(value) || typeof value.type !== 'string') {
-        return null;
-    }
-
-    switch (value.type) {
-        case 'text':
-            return {
-                type: 'text',
-                content: typeof value.content === 'string' ? value.content : '',
-            };
-
-        case 'thinking':
-            return {
-                type: 'thinking',
-                id: readString(value, 'id', 'reasoning_id', 'reasoningId') ?? randomId(),
-                content: typeof value.content === 'string' ? value.content : '',
-                summary: readRecord(value, 'summary') ?? null,
-            };
-
-        case 'tool_call': {
-            const data = readRecord(value, 'data') ?? {};
-            const calls = (readArray(data, 'calls') ?? [])
-                .map((call) => normalizeToolCall(call))
-                .filter((call): call is ToolCall => call !== null);
-
-            return {
-                type: 'tool_call',
-                data: { calls },
-            };
-        }
-
-        case 'tool_result': {
-            const data = readRecord(value, 'data') ?? {};
-            const results = (readArray(data, 'results') ?? [])
-                .map((result) => normalizeToolResult(result))
-                .filter((result): result is ToolResult => result !== null);
-
-            return {
-                type: 'tool_result',
-                data: { results },
-            };
-        }
-
-        case 'provider_tool':
-            return {
-                type: 'provider_tool',
-                data: readRecord(value, 'data') ?? {},
-            };
-
-        default:
-            return null;
-    }
-};
-
-const normalizeAssistantMetadata = (value: unknown): AssistantMetadata => {
-    const metadata = isRecord(value) ? value : {};
-    const parts = (readArray(metadata, 'parts') ?? [])
-        .map((part) => normalizeAssistantPart(part))
-        .filter((part): part is AssistantPart => part !== null);
-    const citationsValue = readValue(metadata, 'citations');
-
-    return {
-        model: readString(metadata, 'model') ?? '',
-        parts,
-        usage: normalizeUsage(readRecord(metadata, 'usage') ?? {}),
-        provider: readString(metadata, 'provider') ?? '',
-        citations: Array.isArray(citationsValue) ? citationsValue : null,
-        response_id: readString(metadata, 'response_id', 'responseId') ?? '',
-        finish_reason: readString(metadata, 'finish_reason', 'finishReason') ?? '',
-    };
-};
-
-const normalizeMessage = (value: unknown): Message | null => {
-    if (!isRecord(value) || (value.type !== 'user' && value.type !== 'assistant')) {
-        return null;
-    }
-
-    const status = value.status;
-
-    if (
-        typeof value.uuid !== 'string' ||
-        typeof value.content !== 'string' ||
-        (status !== 'streaming' && status !== 'completed' && status !== 'error')
-    ) {
-        return null;
-    }
-
-    if (value.type === 'user') {
-        return {
-            uuid: value.uuid,
-            type: 'user',
-            content: value.content,
-            status,
-            created_at: toIsoDate(readValue(value, 'created_at', 'createdAt', 'timestamp')),
-            metadata: null,
-        };
-    }
-
-    return {
-        uuid: value.uuid,
-        type: 'assistant',
-        content: value.content,
-        status,
-        created_at: toIsoDate(readValue(value, 'created_at', 'createdAt', 'timestamp')),
-        metadata: normalizeAssistantMetadata(readValue(value, 'metadata')),
-    };
-};
-
 const findAssistantMessage = (messageId: string | null): AssistantMessage | undefined => {
     if (messageId === null) {
         return undefined;
@@ -1168,12 +1023,16 @@ const normalizeUsage = (usage: Record<string, unknown>): Usage => ({
 });
 
 const processCompleteMessage = (value: Record<string, unknown>): boolean => {
-    const message = normalizeMessage(value);
-
-    if (message === null) {
+    if (
+        (value.type !== 'user' && value.type !== 'assistant') ||
+        typeof value.uuid !== 'string' ||
+        typeof value.content !== 'string' ||
+        !['streaming', 'completed', 'error'].includes(String(value.status))
+    ) {
         return false;
     }
 
+    const message = value as unknown as Message;
     const existingIndex = messages.value.findIndex((existingMessage) => existingMessage.uuid === message.uuid);
 
     if (existingIndex === -1) {
@@ -1201,7 +1060,11 @@ const formatValue = (value: unknown): string => {
     }
 };
 
-const hasTokenUsage = (usage: Usage): boolean => {
+const hasTokenUsage = (usage?: Usage): boolean => {
+    if (usage === undefined) {
+        return false;
+    }
+
     return [
         usage.promptTokens,
         usage.completionTokens,
@@ -1211,14 +1074,22 @@ const hasTokenUsage = (usage: Usage): boolean => {
     ].some((value) => typeof value === 'number' && value > 0);
 };
 
-const totalTokens = (usage: Usage): number => {
+const totalTokens = (usage?: Usage): number => {
+    if (usage === undefined) {
+        return 0;
+    }
+
     return [usage.promptTokens, usage.completionTokens].reduce(
         (total, value) => total + (typeof value === 'number' ? value : 0),
         0
     );
 };
 
-const tokenUsageLabel = (usage: Usage): string => {
+const tokenUsageLabel = (usage?: Usage): string => {
+    if (usage === undefined) {
+        return '';
+    }
+
     return `${usage.promptTokens.toLocaleString()} prompt + ${usage.completionTokens.toLocaleString()} completion tokens`;
 };
 
