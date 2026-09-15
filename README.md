@@ -26,21 +26,50 @@ The component is display-only. It does not open a WebSocket, send messages, make
 
 ## Installation
 
-This repository is configured as a private package and is intended to be installed directly from the organisation's private GitHub repository:
+This package is not currently published to the npm registry. Install it directly from the public [SynergiTech/ai-interface-vue](https://github.com/SynergiTech/ai-interface-vue) GitHub repository instead.
+
+The recommended installation command tracks the `main` branch:
 
 ```bash
-npm install git+ssh://git@github.com/YOUR_ORGANISATION/ai-interface-vue.git#main
+npm install github:SynergiTech/ai-interface-vue#main
 ```
 
-Replace `YOUR_ORGANISATION` with the GitHub organisation name. The installing user or CI environment must have read access to the private repository and must be authenticated with GitHub over SSH.
-
-The package has an npm `prepare` script, so installing it from GitHub builds the package before npm adds it to the consuming project. A release tag can be used instead of `main`:
+Because the repository is public, no GitHub authentication is needed when using the shorthand above. The equivalent HTTPS URL is:
 
 ```bash
-npm install git+ssh://git@github.com/YOUR_ORGANISATION/ai-interface-vue.git#v0.1.0
+npm install git+https://github.com/SynergiTech/ai-interface-vue.git#main
 ```
 
-The package is currently marked with `"private": true`, which prevents accidental publication to the public npm registry. If it is later moved to GitHub Packages, the package name and registry configuration will need to be changed accordingly.
+You can also use SSH if your environment already has GitHub SSH authentication configured:
+
+```bash
+npm install git+ssh://git@github.com/SynergiTech/ai-interface-vue.git#main
+```
+
+For reproducible installations, pin the dependency to a release tag or commit. The current release tag is `0.1.0`:
+
+```bash
+npm install github:SynergiTech/ai-interface-vue#0.1.0
+```
+
+The package has an npm `prepare` script, so npm builds the package from source during a GitHub installation before adding it to the consuming project. The `"private": true` setting prevents accidental publication to npm; it does not prevent installation from GitHub.
+
+### Refreshing a cached GitHub installation
+
+When installing from a branch such as `main`, npm may use the commit recorded in the consuming application's `package-lock.json`. Re-run the explicit install command with `--force` to fetch the current remote branch and update the lockfile:
+
+```bash
+npm install github:SynergiTech/ai-interface-vue#main --force
+```
+
+If the old package is still present in `node_modules`, remove only this dependency and install it again:
+
+```bash
+npm uninstall ai-interface-vue
+npm install github:SynergiTech/ai-interface-vue#main --force
+```
+
+Do not use `npm ci` to update a branch-based Git dependency. `npm ci` intentionally installs the exact revision already recorded in the lockfile. Update the dependency with the explicit `npm install` command first, then commit the resulting `package.json` and `package-lock.json` changes. Clearing the entire npm cache is normally unnecessary; use `npm cache clean --force` only as a last resort for a confirmed cache problem.
 
 ## Basic usage
 
@@ -517,4 +546,4 @@ The default and named exports both refer to the same component. The stylesheet i
 
 ## License
 
-This package is private to the organisation. Add the organisation's preferred license before making the repository public or distributing it outside the organisation.
+This project is released under the [MIT License](LICENSE).
