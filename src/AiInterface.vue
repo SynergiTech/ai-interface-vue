@@ -9,7 +9,7 @@
             </div>
         </div>
 
-        <div v-else class="ai-interface__messages" :class="props.classes.messages">
+        <div ref="messagesContainer" v-else class="ai-interface__messages" :class="props.classes.messages">
             <article
                 v-for="message in messages"
                 :key="message.uuid"
@@ -298,7 +298,7 @@
 </template>
 <script setup lang="ts">
 import MarkdownIt from 'markdown-it';
-import { ref, type PropType } from 'vue';
+import { nextTick, ref, watch, type PropType } from 'vue';
 
 type ClassValue = string | string[] | Record<string, boolean> | null | undefined;
 
@@ -398,6 +398,10 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+        autoScroll: {
+            type: Boolean,
+            default: false,
+        },
     provider: {
         type: Boolean,
         default: true,
@@ -516,6 +520,7 @@ interface NormalizedStreamEvent {
 
 const thinking = ref<boolean>(false);
 const messages = ref<Message[]>([]);
+const messagesContainer = ref<HTMLElement | null>(null);
 
 const activeTextPart = ref<TextPart | null>(null);
 let activeTextMessageId: string | null = null;
@@ -568,6 +573,26 @@ const clearMessages = (): void => {
     activeTextMessageId = null;
     activeStream = null;
 };
+
+const scrollToBottom = async (): Promise<void> => {
+    await nextTick();
+
+    if (messagesContainer.value === null) {
+        return;
+    }
+
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+};
+
+watch(
+    [messages, thinking],
+    () => {
+        if (props.autoScroll) {
+            void scrollToBottom();
+        }
+    },
+    { deep: true, flush: 'post' }
+);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -1345,6 +1370,7 @@ defineExpose({
     processStream,
     setThinking,
     clearMessages,
+    scrollToBottom,
 });
 </script>
 
