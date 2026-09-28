@@ -1,5 +1,11 @@
 <template>
-    <section class="ai-interface" :class="props.classes.root" aria-label="AI conversation" aria-live="polite">
+    <section
+        class="ai-interface"
+        :class="props.classes.root"
+        :data-theme="props.theme"
+        aria-label="AI conversation"
+        aria-live="polite"
+    >
         <div v-if="messages.length === 0 && !thinking" class="ai-interface__empty" :class="props.classes.empty">
             <div :class="props.classes.emptyContent">
                 <h2 class="ai-interface__empty-title" :class="props.classes.emptyTitle">No messages yet</h2>
@@ -301,6 +307,7 @@ import MarkdownIt from 'markdown-it';
 import { nextTick, ref, watch, type PropType } from 'vue';
 
 type ClassValue = string | string[] | Record<string, boolean> | null | undefined;
+type Theme = 'light' | 'dark' | 'system';
 
 interface AiInterfaceClasses {
     root?: ClassValue;
@@ -362,6 +369,10 @@ interface AiInterfaceClasses {
 }
 
 const props = defineProps({
+    theme: {
+        type: String as PropType<Theme>,
+        default: 'system',
+    },
     classes: {
         type: Object as PropType<AiInterfaceClasses>,
         default: () => ({}),
@@ -398,10 +409,10 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
-        autoScroll: {
-            type: Boolean,
-            default: false,
-        },
+    autoScroll: {
+        type: Boolean,
+        default: false,
+    },
     provider: {
         type: Boolean,
         default: true,
@@ -1380,6 +1391,7 @@ defineExpose({
     --ai-surface: #ffffff;
     --ai-border: #e2e8f0;
     --ai-text: #1e293b;
+    color-scheme: light;
     --ai-muted: #64748b;
     --ai-accent: #2563eb;
     --ai-accent-soft: #eff6ff;
@@ -1897,7 +1909,8 @@ defineExpose({
 }
 
 @media (prefers-color-scheme: dark) {
-    .ai-interface {
+    .ai-interface[data-theme='system'] {
+        color-scheme: dark;
         --ai-background: #0f172a;
         --ai-surface: #1e293b;
         --ai-border: #334155;
@@ -1910,10 +1923,33 @@ defineExpose({
         --ai-error-soft: #450a0a;
     }
 
-    .ai-interface__code {
+    .ai-interface[data-theme='system'] .ai-interface__code {
         color: #cbd5e1;
         background: #0f172a;
     }
+}
+
+.ai-interface[data-theme='dark'] {
+    --ai-background: #0f172a;
+    --ai-surface: #1e293b;
+    --ai-border: #334155;
+    --ai-text: #e2e8f0;
+    --ai-muted: #94a3b8;
+    --ai-accent-soft: #172554;
+    --ai-warning: #fbbf24;
+    --ai-warning-soft: #451a03;
+    --ai-error: #fca5a5;
+    --ai-error-soft: #450a0a;
+    color-scheme: dark;
+}
+
+.ai-interface[data-theme='dark'] .ai-interface__code {
+    color: #cbd5e1;
+    background: #0f172a;
+}
+
+.ai-interface[data-theme='light'] {
+    color-scheme: light;
 }
 
 @media (prefers-reduced-motion: reduce) {

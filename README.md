@@ -15,7 +15,7 @@ The component is display-only. It does not open a WebSocket, send messages, make
 - Streaming support for text, thinking/reasoning, tool calls, tool results, provider tools, citations, errors, and completion events.
 - Exposed methods for processing data, controlling the thinking indicator, and clearing the conversation.
 - Additive class overrides for every meaningful rendered element.
-- Responsive layout, dark-mode support through `prefers-color-scheme`, and reduced-motion support.
+- Responsive layout, configurable light/dark/system themes, and reduced-motion support.
 
 ## Requirements
 
@@ -133,6 +133,7 @@ All props are optional. The defaults below are used when a prop is omitted.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
+| `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | Selects the component color theme. The default follows the user's system preference. |
 | `classes` | `AiInterfaceClasses` | `{}` | Additional Vue class values for the rendered elements. See [Class overrides](#class-overrides). |
 | `avatars` | `boolean` | `true` | Shows the circular avatar or initials element for each message. When `false`, the avatar element is removed and the message body uses the full available width. |
 | `assistantAvatarUrl` | `string \| null` | `null` | URL for the assistant avatar image. The assistant initials are used when this is `null` or empty. User messages never use this image. |
@@ -486,7 +487,13 @@ For many projects, overriding the variables is enough to apply the host applicat
 }
 ```
 
-The component also provides a dark palette automatically when the user's system has a dark color scheme. Add a host class and override the variables yourself if the consuming application uses an explicit theme switch instead.
+The component follows the user's system color scheme by default. Pass `theme="light"` or `theme="dark"` to override it:
+
+```vue
+<AiInterface theme="dark" />
+```
+
+Use `theme="system"` to explicitly restore system preference behavior. The selected theme is also exposed as a `data-theme` attribute on the root element, which can be used when overriding the component's CSS variables.
 
 ## Tool and citation display
 
