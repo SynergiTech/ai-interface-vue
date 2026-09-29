@@ -307,10 +307,12 @@
 import MarkdownIt from 'markdown-it';
 import mermaid from 'mermaid';
 import markdownItTextualUml from 'markdown-it-textual-uml';
+import type { MermaidConfig } from 'mermaid';
 import { nextTick, ref, watch, type PropType } from 'vue';
 
 type ClassValue = string | string[] | Record<string, boolean> | null | undefined;
 type Theme = 'light' | 'dark' | 'system';
+type AiInterfaceMermaidConfig = MermaidConfig;
 
 interface AiInterfaceClasses {
     root?: ClassValue;
@@ -378,6 +380,10 @@ const props = defineProps({
     },
     classes: {
         type: Object as PropType<AiInterfaceClasses>,
+        default: () => ({}),
+    },
+    mermaidConfig: {
+        type: Object as PropType<AiInterfaceMermaidConfig>,
         default: () => ({}),
     },
     avatars: {
@@ -544,10 +550,9 @@ const markdown = new MarkdownIt({
     html: false,
 }).use(markdownItTextualUml);
 
-mermaid.initialize({
+const defaultMermaidConfig: AiInterfaceMermaidConfig = {
     startOnLoad: false,
     theme: 'neo',
-    look: 'neo',
     themeVariables: {
         xyChart: {
             titleColor: '#1e293b',
@@ -562,7 +567,33 @@ mermaid.initialize({
             plotColorPalette: '#2563eb, #16a34a, #dc2626, #d97706, #7c3aed',
         },
     },
-});
+};
+
+const mergeMermaidConfig = (config: AiInterfaceMermaidConfig): AiInterfaceMermaidConfig => {
+    const defaultThemeVariables = defaultMermaidConfig.themeVariables ?? {};
+    const configThemeVariables = config.themeVariables ?? {};
+
+    return {
+        ...defaultMermaidConfig,
+        ...config,
+        themeVariables: {
+            ...defaultThemeVariables,
+            ...configThemeVariables,
+            xyChart: {
+                ...defaultThemeVariables.xyChart,
+                ...configThemeVariables.xyChart,
+            },
+        },
+    };
+};
+
+watch(
+    () => props.mermaidConfig,
+    (config) => {
+        mermaid.initialize(mergeMermaidConfig(config));
+    },
+    { deep: true, immediate: true }
+);
 
 const createActiveStream = (): ActiveStream => ({
     id: null,

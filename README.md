@@ -135,6 +135,7 @@ All props are optional. The defaults below are used when a prop is omitted.
 | --- | --- | --- | --- |
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | Selects the component color theme. The default follows the user's system preference. |
 | `classes` | `AiInterfaceClasses` | `{}` | Additional Vue class values for the rendered elements. See [Class overrides](#class-overrides). |
+| `mermaidConfig` | `MermaidConfig` | `{}` | Overrides Mermaid renderer settings. Unspecified package defaults, including the XY chart palette, are retained. |
 | `avatars` | `boolean` | `true` | Shows the circular avatar or initials element for each message. When `false`, the avatar element is removed and the message body uses the full available width. |
 | `assistantAvatarUrl` | `string \| null` | `null` | URL for the assistant avatar image. The assistant initials are used when this is `null` or empty. User messages never use this image. |
 | `assistantName` | `string` | `'Assistant'` | Label displayed above assistant messages. |
@@ -145,6 +146,34 @@ All props are optional. The defaults below are used when a prop is omitted.
 | `tokens` | `boolean` | `true` | Shows assistant token usage when usage values are available. |
 | `provider` | `boolean` | `true` | Shows the provider name in assistant metadata. |
 | `model` | `boolean` | `true` | Shows the model name in assistant metadata. |
+
+Pass Mermaid configuration to customize diagrams:
+
+```vue
+<script setup lang="ts">
+import AiInterface from 'ai-interface-vue';
+import type { MermaidConfig } from 'mermaid';
+
+const mermaidConfig: MermaidConfig = {
+    theme: 'dark',
+    fontSize: 12,
+    xyChart: {
+        height: 420,
+    },
+    themeVariables: {
+        xyChart: {
+            plotColorPalette: '#2563eb, #16a34a',
+        },
+    },
+};
+</script>
+
+<template>
+    <AiInterface :mermaid-config="mermaidConfig" />
+</template>
+```
+
+Mermaid configuration is initialized by the component. Custom `themeVariables.xyChart` values are merged with the package's default XY chart variables, so you can override only the settings you need.
 
 The `provider`, `model`, and `tokens` props independently control the corresponding sections of the assistant metadata row. For example, set `:provider="false"` to hide the provider while leaving the model and token count visible.
 
