@@ -46,10 +46,10 @@ You can also use SSH if your environment already has GitHub SSH authentication c
 npm install git+ssh://git@github.com/SynergiTech/ai-interface-vue.git#main
 ```
 
-For reproducible installations, pin the dependency to a release tag or commit. The current release tag is `0.1.0`:
+For reproducible installations, pin the dependency to a release tag or commit. The current release tag is `0.1.3`:
 
 ```bash
-npm install github:SynergiTech/ai-interface-vue#0.1.0
+npm install github:SynergiTech/ai-interface-vue#0.1.3
 ```
 
 The package has an npm `prepare` script, so npm builds the package from source during a GitHub installation before adding it to the consuming project. The `"private": true` setting prevents accidental publication to npm; it does not prevent installation from GitHub.
