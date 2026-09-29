@@ -92,6 +92,7 @@
                             v-if="message.content"
                             class="ai-interface__content"
                             :class="props.classes.content"
+                            :data-message-status="message.status"
                             v-html="markdown.render(message.content)"
                         ></div>
 
@@ -304,6 +305,8 @@
 </template>
 <script setup lang="ts">
 import MarkdownIt from 'markdown-it';
+import mermaid from 'mermaid';
+import markdownItTextualUml from 'markdown-it-textual-uml';
 import { nextTick, ref, watch, type PropType } from 'vue';
 
 type ClassValue = string | string[] | Record<string, boolean> | null | undefined;
@@ -539,6 +542,26 @@ let activeStream: ActiveStream | null = null;
 
 const markdown = new MarkdownIt({
     html: false,
+}).use(markdownItTextualUml);
+
+mermaid.initialize({
+    startOnLoad: false,
+    theme: 'neo',
+    look: 'neo',
+    themeVariables: {
+        xyChart: {
+            titleColor: '#1e293b',
+            xAxisLabelColor: '#1e293b',
+            xAxisTitleColor: '#1e293b',
+            xAxisTickColor: '#475569',
+            xAxisLineColor: '#475569',
+            yAxisLabelColor: '#1e293b',
+            yAxisTitleColor: '#1e293b',
+            yAxisTickColor: '#475569',
+            yAxisLineColor: '#475569',
+            plotColorPalette: '#2563eb, #16a34a, #dc2626, #d97706, #7c3aed',
+        },
+    },
 });
 
 const createActiveStream = (): ActiveStream => ({
@@ -597,7 +620,25 @@ const scrollToBottom = async (): Promise<void> => {
 
 watch(
     [messages, thinking],
-    () => {
+    async () => {
+        const messagesElement = messagesContainer.value;
+
+        if (messagesElement !== null) {
+            const mermaidElements = messagesElement.querySelectorAll<HTMLElement>(
+                '.ai-interface__content:not([data-message-status="streaming"]) .mermaid:not([data-processed])'
+            );
+
+            if (mermaidElements.length > 0) {
+                try {
+                    await mermaid.run({ nodes: mermaidElements, suppressErrors: true });
+                } catch (error) {
+                    if (props.debug) {
+                        console.error('Unable to render Mermaid diagram:', error);
+                    }
+                }
+            }
+        }
+
         if (props.autoScroll) {
             void scrollToBottom();
         }
@@ -1585,6 +1626,73 @@ defineExpose({
 
 .ai-interface__content {
     min-height: 1.5rem;
+}
+
+.ai-interface__content :deep(.mermaid) {
+    max-width: 100%;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    overflow-x: auto;
+    background: transparent;
+    white-space: normal;
+}
+
+.ai-interface__content :deep(.mermaid:not([data-processed])) {
+    display: flex;
+    min-height: 8rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    overflow: hidden;
+    border: 1px solid var(--ai-border);
+    border-radius: 0.5rem;
+    color: transparent;
+    background: var(--ai-background);
+    font-size: 0;
+    line-height: 0;
+}
+
+.ai-interface__content :deep(.mermaid:not([data-processed])::before) {
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 0.2rem solid var(--ai-border);
+    border-top-color: var(--ai-accent);
+    border-radius: 50%;
+    content: '';
+    animation: ai-interface-mermaid-spin 0.8s linear infinite;
+}
+
+.ai-interface__content :deep(.mermaid:not([data-processed])::after) {
+    color: var(--ai-muted);
+    content: 'Rendering diagram…';
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+@keyframes ai-interface-mermaid-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ai-interface__content :deep(.mermaid:not([data-processed])::before) {
+        animation-duration: 1.8s;
+    }
+}
+
+.ai-interface__content :deep(.mermaid svg) {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    margin-inline: auto;
+    overflow: visible;
+}
+
+.ai-interface__content :deep(.mermaid svg text) {
+    font-size: 0.85em !important;
 }
 
 .ai-interface__content > :first-child {
