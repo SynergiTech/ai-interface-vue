@@ -143,6 +143,7 @@ All props are optional. The defaults below are used when a prop is omitted.
 | `userName` | `string` | `'You'` | Label displayed above user messages. |
 | `userInitials` | `string` | `'You'` | Text displayed inside the user avatar. |
 | `tools` | `boolean` | `true` | Shows thinking, tool-call, tool-result, and provider-tool details. The data is still stored when this is `false`; only its display is hidden. |
+| `simplifiedTools` | `boolean` | `false` | Displays tool calls as compact, expandable sections in message order. Consecutive calls are grouped; arguments and result content remain hidden, while completion status and errors are shown. When enabled, this takes precedence over the detailed tool display. |
 | `tokens` | `boolean` | `true` | Shows assistant token usage when usage values are available. |
 | `provider` | `boolean` | `true` | Shows the provider name in assistant metadata. |
 | `model` | `boolean` | `true` | Shows the model name in assistant metadata. |
@@ -453,6 +454,12 @@ Example:
 | `toolCallPart` | Tool-call part | Style tool invocation details. |
 | `toolResultPart` | Tool-result part | Style tool output details. |
 | `providerToolPart` | Provider-tool part | Style provider-specific tool events. |
+| `simplifiedToolsPart` | Compact tool-call `<details>` element | Style the collapsed tool-call section. |
+| `simplifiedToolsSummary` | Compact tool-call `<summary>` | Style the expandable call count. |
+| `simplifiedToolsList` | Expanded compact tool list | Control spacing between calls. |
+| `simplifiedToolsItem` | Individual compact tool entry | Style a tool name and its status. |
+| `simplifiedToolsStatus` | Compact tool status | Style the pending, success, or failure label. |
+| `simplifiedToolsError` | Compact tool error text | Style an error shown for a failed call. |
 | `partHeading` | Thinking/tool/citation heading | Style part labels and counts. |
 | `partTitle` | Part title text | Style “Thinking”, “Tool calls”, “Tool results”, or “Citations”. |
 | `partLabel` | Part count/status label | Style counts or “Complete”/“In progress”. |
@@ -526,7 +533,7 @@ Use `theme="system"` to explicitly restore system preference behavior. The selec
 
 ## Tool and citation display
 
-Tool calls and results are shown in expandable-style visual sections within the assistant bubble's normal flow. The component currently displays:
+By default, tool calls and results are shown in detailed sections within the assistant bubble. This debugging view displays:
 
 - Tool names.
 - Serialized tool arguments.
@@ -536,7 +543,15 @@ Tool calls and results are shown in expandable-style visual sections within the 
 - Provider-tool payloads.
 - Citation values.
 
-Set `tools` to `false` to hide these sections without changing the underlying assistant message data.
+Set `tools` to `false` to hide the detailed debugging sections without changing the underlying assistant message data. `simplifiedTools` is independent of `tools` and takes precedence when enabled.
+
+For a compact conversation view, enable `simplifiedTools`:
+
+```vue
+<AiInterface :simplified-tools="true" />
+```
+
+Compact tool sections stay in the sequence of assistant text and group adjacent calls. Expanding a section shows tool names and their pending/success/failure states. Arguments and result payloads are not displayed; failure details are shown when available. Text/tool ordering is preserved for streamed messages and for messages whose `metadata.parts` contains text parts.
 
 ## Token display
 

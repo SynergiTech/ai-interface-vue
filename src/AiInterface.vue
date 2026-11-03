@@ -89,7 +89,11 @@
                         :class="[props.classes.bubble, props.classes.assistantBubble]"
                     >
                         <div
-                            v-if="message.content"
+                            v-if="
+                                message.content &&
+                                (!props.simplifiedTools ||
+                                    !message.metadata?.parts?.some((part) => part.type === 'text'))
+                            "
                             class="ai-interface__content"
                             :class="props.classes.content"
                             :data-message-status="message.status"
@@ -102,9 +106,17 @@
                             :class="props.classes.parts"
                         >
                             <template
-                                v-for="(part, partIndex) in message.metadata?.parts ?? []"
+                                v-for="(part, partIndex) in renderedParts(message)"
                                 :key="`${message.uuid}-${partIndex}`"
                             >
+                                <div
+                                    v-if="part.type === 'text' && props.simplifiedTools"
+                                    class="ai-interface__content"
+                                    :class="props.classes.content"
+                                    :data-message-status="message.status"
+                                    v-html="markdown.render(part.content)"
+                                ></div>
+
                                 <div
                                     v-if="part.type === 'thinking'"
                                     class="ai-interface__part ai-interface__part--thinking"
@@ -124,6 +136,60 @@
                                         {{ part.content }}
                                     </div>
                                 </div>
+
+                                <details
+                                    v-else-if="part.type === 'simplified_tools'"
+                                    class="ai-interface__part ai-interface__part--simplified-tools"
+                                    :class="[props.classes.part, props.classes.simplifiedToolsPart]"
+                                >
+                                    <summary
+                                        class="ai-interface__simplified-tools-summary"
+                                        :class="props.classes.simplifiedToolsSummary"
+                                    >
+                                        {{ part.calls.length }} Tool {{ part.calls.length === 1 ? 'call' : 'calls' }}
+                                    </summary>
+                                    <div
+                                        class="ai-interface__simplified-tools-list"
+                                        :class="props.classes.simplifiedToolsList"
+                                    >
+                                        <div
+                                            v-for="call in part.calls"
+                                            :key="call.id"
+                                            class="ai-interface__simplified-tools-item"
+                                            :class="props.classes.simplifiedToolsItem"
+                                        >
+                                            <strong class="ai-interface__tool-name" :class="props.classes.toolName">
+                                                {{ call.name || 'Unnamed tool' }}
+                                            </strong>
+                                            <span
+                                                class="ai-interface__simplified-tools-status"
+                                                :class="[
+                                                    props.classes.simplifiedToolsStatus,
+                                                    call.result
+                                                        ? call.result.success
+                                                            ? 'ai-interface__result-status--success'
+                                                            : 'ai-interface__result-status--error'
+                                                        : 'ai-interface__simplified-tools-status--pending',
+                                                ]"
+                                            >
+                                                {{
+                                                    call.result
+                                                        ? call.result.success
+                                                            ? 'Success'
+                                                            : 'Failed'
+                                                        : 'In progress'
+                                                }}
+                                            </span>
+                                            <p
+                                                v-if="call.result && !call.result.success && call.result.error"
+                                                class="ai-interface__simplified-tools-error"
+                                                :class="props.classes.simplifiedToolsError"
+                                            >
+                                                {{ formatValue(call.result.error) }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </details>
 
                                 <div
                                     v-else-if="part.type === 'tool_call' && props.tools"
@@ -347,6 +413,12 @@ interface AiInterfaceClasses {
     toolCallPart?: ClassValue;
     toolResultPart?: ClassValue;
     providerToolPart?: ClassValue;
+    simplifiedToolsPart?: ClassValue;
+    simplifiedToolsSummary?: ClassValue;
+    simplifiedToolsList?: ClassValue;
+    simplifiedToolsItem?: ClassValue;
+    simplifiedToolsStatus?: ClassValue;
+    simplifiedToolsError?: ClassValue;
     partHeading?: ClassValue;
     partTitle?: ClassValue;
     partLabel?: ClassValue;
@@ -413,6 +485,10 @@ const props = defineProps({
     tools: {
         type: Boolean,
         default: true,
+    },
+    simplifiedTools: {
+        type: Boolean,
+        default: false,
     },
     tokens: {
         type: Boolean,
@@ -513,6 +589,19 @@ interface ProviderToolPart {
     type: 'provider_tool';
     data: Record<string, unknown>;
 }
+
+interface SimplifiedToolCall {
+    id: string;
+    name: string;
+    result?: ToolResult;
+}
+
+interface SimplifiedToolsPart {
+    type: 'simplified_tools';
+    calls: SimplifiedToolCall[];
+}
+
+type RenderedAssistantPart = AssistantPart | SimplifiedToolsPart;
 
 interface Usage {
     promptTokens: number;
@@ -868,6 +957,79 @@ const createAssistantMetadata = (): AssistantMetadata => ({
     finish_reason: '',
 });
 
+const renderedParts = (message: AssistantMessage): RenderedAssistantPart[] => {
+    if (!props.simplifiedTools) {
+        return message.metadata.parts;
+    }
+
+    const toolResults = new Map<string, ToolResult>();
+
+    for (const part of message.metadata.parts) {
+        if (part.type !== 'tool_result') {
+            continue;
+        }
+
+        for (const result of part.data.results) {
+            toolResults.set(result.tool_call_id, result);
+        }
+    }
+
+    const result: RenderedAssistantPart[] = [];
+
+    const appendToolCall = (call: SimplifiedToolCall): void => {
+        const lastPart = result.at(-1);
+
+        if (lastPart?.type === 'simplified_tools') {
+            lastPart.calls.push(call);
+        } else {
+            result.push({ type: 'simplified_tools', calls: [call] });
+        }
+    };
+
+    message.metadata.parts.forEach((part, index) => {
+        if (part.type === 'tool_result') {
+            return;
+        }
+
+        if (part.type === 'text') {
+            const lastPart = result.at(-1);
+
+            if (lastPart?.type === 'text') {
+                lastPart.content += part.content;
+            } else {
+                result.push({ type: 'text', content: part.content });
+            }
+
+            return;
+        }
+
+        if (part.type === 'tool_call') {
+            part.data.calls.forEach((call) => {
+                appendToolCall({
+                    id: call.id,
+                    name: call.name,
+                    result: toolResults.get(call.id),
+                });
+            });
+
+            return;
+        }
+
+        if (part.type === 'provider_tool') {
+            appendToolCall({
+                id: readString(part.data, 'id', 'tool_id', 'toolId') ?? `provider-tool-${index}`,
+                name: readString(part.data, 'name', 'tool_name', 'toolName') ?? 'Provider tool',
+            });
+
+            return;
+        }
+
+        result.push(part);
+    });
+
+    return result;
+};
+
 const ensureAssistantMetadata = (message: AssistantMessage): AssistantMetadata => {
     const metadata: Record<string, unknown> = isRecord(message.metadata) ? message.metadata : {};
     const usage = readRecord(metadata, 'usage');
@@ -980,7 +1142,14 @@ const ensureAssistantMessage = (
 };
 
 const activeMessageIdForEvent = (event: NormalizedStreamEvent): string | null => {
-    const explicitMessageId = readString(event.payload, 'message_id', 'messageId', 'message_uuid', 'messageUuid', 'uuid');
+    const explicitMessageId = readString(
+        event.payload,
+        'message_id',
+        'messageId',
+        'message_uuid',
+        'messageUuid',
+        'uuid'
+    );
 
     if (explicitMessageId !== undefined) {
         return explicitMessageId;
@@ -1099,9 +1268,8 @@ const addToolCallEntry = (message: AssistantMessage, payload: Record<string, unk
         return;
     }
 
-    const existingPart = [...message.metadata.parts]
-        .reverse()
-        .find((part): part is ToolCallPart => part.type === 'tool_call');
+    const lastPart = message.metadata.parts.at(-1);
+    const existingPart = lastPart?.type === 'tool_call' ? lastPart : undefined;
 
     if (existingPart !== undefined) {
         existingPart.data.calls.push(toolCall);
@@ -1130,8 +1298,7 @@ const addToolCall = (message: AssistantMessage, payload: Record<string, unknown>
 };
 
 const addToolResultEntry = (message: AssistantMessage, payload: Record<string, unknown>): void => {
-    const toolCallId =
-        readString(payload, 'tool_call_id', 'toolCallId', 'tool_id', 'toolId', 'id') ?? randomId();
+    const toolCallId = readString(payload, 'tool_call_id', 'toolCallId', 'tool_id', 'toolId', 'id') ?? randomId();
     const toolCall = findToolCall(message, toolCallId);
     const resultValue = readValue(payload, 'result', 'output');
     const result: ToolResult = {
@@ -1148,19 +1315,28 @@ const addToolResultEntry = (message: AssistantMessage, payload: Record<string, u
         })(),
         tool_call_id: toolCallId,
     };
-    const existingPart = [...message.metadata.parts]
+    const matchingResultPart = [...message.metadata.parts]
         .reverse()
-        .find((part): part is ToolResultPart => part.type === 'tool_result');
-    const existingResult = existingPart?.data.results.find(
-        (existingToolResult) => existingToolResult.tool_call_id === toolCallId
-    );
+        .find(
+            (part): part is ToolResultPart =>
+                part.type === 'tool_result' &&
+                part.data.results.some((existingToolResult) => existingToolResult.tool_call_id === toolCallId)
+        );
+    const lastPart = message.metadata.parts.at(-1);
+    const existingPart = lastPart?.type === 'tool_result' ? lastPart : undefined;
+    const existingResult =
+        matchingResultPart?.type === 'tool_result'
+            ? matchingResultPart.data.results.find(
+                  (existingToolResult) => existingToolResult.tool_call_id === toolCallId
+              )
+            : undefined;
 
     if (existingResult !== undefined) {
         Object.assign(existingResult, result);
         return;
     }
 
-    if (existingPart !== undefined) {
+    if (existingPart?.type === 'tool_result') {
         existingPart.data.results.push(result);
     } else {
         message.metadata.parts.push({
@@ -1278,8 +1454,7 @@ const processStream = (stream: unknown, eventType?: string): void => {
         case 'stream_start': {
             activeStream = {
                 id: readString(event.payload, 'id') ?? null,
-                messageId:
-                    readString(event.payload, 'message_id', 'messageId', 'message_uuid', 'messageUuid') ?? null,
+                messageId: readString(event.payload, 'message_id', 'messageId', 'message_uuid', 'messageUuid') ?? null,
                 temporaryMessageId: null,
                 reasoningId: null,
                 model: readString(event.payload, 'model') ?? '',
@@ -1889,6 +2064,76 @@ defineExpose({
     border: 1px solid var(--ai-border);
     border-radius: 0.55rem;
     background: var(--ai-background);
+}
+
+.ai-interface__part--simplified-tools {
+    padding: 0;
+    overflow: hidden;
+}
+
+.ai-interface__simplified-tools-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    color: var(--ai-text);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    list-style: none;
+}
+
+.ai-interface__simplified-tools-summary::-webkit-details-marker {
+    display: none;
+}
+
+.ai-interface__simplified-tools-summary::after {
+    color: var(--ai-muted);
+    content: '+';
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.ai-interface__part--simplified-tools[open] .ai-interface__simplified-tools-summary::after {
+    content: '−';
+}
+
+.ai-interface__simplified-tools-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 0 0.65rem 0.65rem;
+}
+
+.ai-interface__simplified-tools-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.65rem;
+    min-width: 0;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--ai-border);
+    border-radius: 0.4rem;
+    background: var(--ai-surface);
+}
+
+.ai-interface__simplified-tools-status {
+    margin-left: auto;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.ai-interface__simplified-tools-status--pending {
+    color: var(--ai-muted);
+}
+
+.ai-interface__simplified-tools-error {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--ai-error);
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
 }
 
 .ai-interface__part--thinking {
