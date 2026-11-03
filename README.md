@@ -144,6 +144,7 @@ All props are optional. The defaults below are used when a prop is omitted.
 | `userInitials` | `string` | `'You'` | Text displayed inside the user avatar. |
 | `tools` | `boolean` | `true` | Shows thinking, tool-call, tool-result, and provider-tool details. The data is still stored when this is `false`; only its display is hidden. |
 | `simplifiedTools` | `boolean` | `false` | Displays tool calls as compact, expandable sections in message order. Consecutive calls are grouped; arguments and result content remain hidden, while completion status and errors are shown. When enabled, this takes precedence over the detailed tool display. |
+| `toolNames` | `{ name?: string; value: string; human: string }[]` | `[]` | Maps tool names in calls and results to human-readable labels by matching the tool name to `value`. Unmatched tool names are displayed as received. |
 | `tokens` | `boolean` | `true` | Shows assistant token usage when usage values are available. |
 | `provider` | `boolean` | `true` | Shows the provider name in assistant metadata. |
 | `model` | `boolean` | `true` | Shows the model name in assistant metadata. |
@@ -172,6 +173,15 @@ const mermaidConfig: MermaidConfig = {
 <template>
     <AiInterface :mermaid-config="mermaidConfig" />
 </template>
+```
+
+Pass human-readable tool names to show friendly labels in both the compact and detailed tool views:
+
+```vue
+<AiInterface :tool-names="[
+    { name: 'BUDGET_SUMMARY', value: 'budget_summary', human: 'Budget Summary' },
+    { name: 'UPSERT_REPORT', value: 'upsert_report', human: 'Updating Report Contents' },
+]" />
 ```
 
 Mermaid configuration is initialized by the component. Custom `themeVariables.xyChart` values are merged with the package's default XY chart variables, so you can override only the settings you need.

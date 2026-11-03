@@ -159,7 +159,7 @@
                                             :class="props.classes.simplifiedToolsItem"
                                         >
                                             <strong class="ai-interface__tool-name" :class="props.classes.toolName">
-                                                {{ call.name || 'Unnamed tool' }}
+                                                {{ displayToolName(call.name) }}
                                             </strong>
                                             <span
                                                 class="ai-interface__simplified-tools-status"
@@ -210,7 +210,7 @@
                                             :class="props.classes.toolItem"
                                         >
                                             <strong class="ai-interface__tool-name" :class="props.classes.toolName">
-                                                {{ call.name || 'Unnamed tool' }}
+                                                {{ displayToolName(call.name) }}
                                             </strong>
                                             <pre class="ai-interface__code" :class="props.classes.code">{{
                                                 formatValue(call.arguments)
@@ -242,7 +242,7 @@
                                                 :class="props.classes.toolResultHeading"
                                             >
                                                 <strong class="ai-interface__tool-name" :class="props.classes.toolName">
-                                                    {{ result.name || 'Tool result' }}
+                                                    {{ displayToolName(result.name, 'Tool result') }}
                                                 </strong>
                                                 <span
                                                     class="ai-interface__result-status"
@@ -445,6 +445,12 @@ interface AiInterfaceClasses {
     thinkingLabel?: ClassValue;
 }
 
+interface ToolName {
+    name?: string;
+    value: string;
+    human: string;
+}
+
 const props = defineProps({
     theme: {
         type: String as PropType<Theme>,
@@ -489,6 +495,10 @@ const props = defineProps({
     simplifiedTools: {
         type: Boolean,
         default: false,
+    },
+    toolNames: {
+        type: Array as PropType<ToolName[]>,
+        default: () => [],
     },
     tokens: {
         type: Boolean,
@@ -938,6 +948,14 @@ const createUsage = (): Usage => ({
     cacheReadInputTokens: null,
     cacheWriteInputTokens: null,
 });
+
+const displayToolName = (name: string, fallback = 'Unnamed tool'): string => {
+    if (!name) {
+        return fallback;
+    }
+
+    return props.toolNames.find((toolName) => toolName.value === name)?.human ?? name;
+};
 
 const normalizeUsage = (usage: Record<string, unknown>): Usage => ({
     promptTokens: readNumber(usage, 'prompt_tokens', 'promptTokens') ?? 0,
