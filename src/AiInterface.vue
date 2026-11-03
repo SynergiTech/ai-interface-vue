@@ -146,7 +146,7 @@
                                         class="ai-interface__simplified-tools-summary"
                                         :class="props.classes.simplifiedToolsSummary"
                                     >
-                                        {{ part.calls.length }} Tool {{ part.calls.length === 1 ? 'call' : 'calls' }}
+                                        {{ part.calls.length }} tool{{ part.calls.length === 1 ? '' : 's' }} used
                                     </summary>
                                     <div
                                         class="ai-interface__simplified-tools-list"
@@ -1894,8 +1894,9 @@ defineExpose({
     width: 100%;
     max-width: 100%;
     height: auto;
-    margin-inline: auto;
     overflow: visible;
+    margin: 0.75rem 0 1.75rem;
+    margin-inline: auto;
 }
 
 .ai-interface__content :deep(.mermaid svg text) {
@@ -2011,7 +2012,7 @@ defineExpose({
 .ai-interface__content :deep(table) {
     width: max-content;
     min-width: 100%;
-    margin: 0.75rem 0 0;
+    margin: 0.75rem 0 1.75rem;
     border: 1px solid var(--ai-border);
     border-collapse: separate;
     border-spacing: 0;
@@ -2069,18 +2070,21 @@ defineExpose({
 .ai-interface__part--simplified-tools {
     padding: 0;
     overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    margin: 0.25rem 0;
 }
 
 .ai-interface__simplified-tools-summary {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.65rem 0.75rem;
+    gap: 0.45rem;
+    padding: 0.25rem 0;
     color: var(--ai-text);
     cursor: pointer;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 700;
     list-style: none;
 }
 
@@ -2088,14 +2092,14 @@ defineExpose({
     display: none;
 }
 
-.ai-interface__simplified-tools-summary::after {
+.ai-interface__simplified-tools-summary::before {
     color: var(--ai-muted);
     content: '+';
     font-size: 1rem;
     line-height: 1;
 }
 
-.ai-interface__part--simplified-tools[open] .ai-interface__simplified-tools-summary::after {
+.ai-interface__part--simplified-tools[open] .ai-interface__simplified-tools-summary::before {
     content: '−';
 }
 
@@ -2103,7 +2107,7 @@ defineExpose({
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
-    padding: 0 0.65rem 0.65rem;
+    padding: 0 0 0.35rem 0.75rem;
 }
 
 .ai-interface__simplified-tools-item {
@@ -2112,10 +2116,7 @@ defineExpose({
     flex-wrap: wrap;
     gap: 0.45rem 0.65rem;
     min-width: 0;
-    padding: 0.55rem 0.65rem;
-    border: 1px solid var(--ai-border);
-    border-radius: 0.4rem;
-    background: var(--ai-surface);
+    padding: 0.25rem 0;
 }
 
 .ai-interface__simplified-tools-status {
