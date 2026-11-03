@@ -1647,6 +1647,7 @@ defineExpose({
 }
 
 .ai-interface__content {
+    overflow-x: auto;
     overflow-wrap: anywhere;
 }
 
@@ -1832,23 +1833,48 @@ defineExpose({
     border-top: 1px solid var(--ai-border);
 }
 
-.ai-interface__content table {
-    width: 100%;
+.ai-interface__content :deep(table) {
+    width: max-content;
+    min-width: 100%;
     margin: 0.75rem 0 0;
-    border-collapse: collapse;
+    border: 1px solid var(--ai-border);
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 0.55rem;
+    background: var(--ai-surface);
     font-size: 0.82rem;
 }
 
-.ai-interface__content th,
-.ai-interface__content td {
-    padding: 0.45rem 0.6rem;
-    border: 1px solid var(--ai-border);
+.ai-interface__content :deep(th),
+.ai-interface__content :deep(td) {
+    padding: 0.55rem 0.7rem;
+    border-right: 1px solid var(--ai-border);
+    border-bottom: 1px solid var(--ai-border);
     text-align: left;
+    vertical-align: top;
 }
 
-.ai-interface__content th {
+.ai-interface__content :deep(th:last-child),
+.ai-interface__content :deep(td:last-child) {
+    border-right: 0;
+}
+
+.ai-interface__content :deep(tbody tr:last-child td) {
+    border-bottom: 0;
+}
+
+.ai-interface__content :deep(th) {
     color: var(--ai-text);
+    background: var(--ai-background);
     font-weight: 600;
+}
+
+.ai-interface__content :deep(tbody tr:nth-child(even) td) {
+    background: color-mix(in srgb, var(--ai-background) 65%, var(--ai-surface));
+}
+
+.ai-interface__content :deep(tbody tr:hover td) {
+    background: var(--ai-accent-soft);
 }
 
 .ai-interface__parts {
