@@ -354,6 +354,8 @@
                         >
                             No response content.
                         </div>
+
+                        <slot name="message-content" :message="message"></slot>
                     </div>
                 </div>
             </article>
